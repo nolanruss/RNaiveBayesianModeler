@@ -16,7 +16,6 @@ binCreator <- function(df, subjMat){
   # Loop through each subject in the data.frame.
   for(i in 1:length(subjMat)){
     # Loop through each set of electrode potentials.
-    #for(j in 4){
     for(j in 4:length(df)){
       sortedPotentials <- sort(df[subjMat[i]==df[,2],j], decreasing = FALSE) # Sort array of electrode potentials for subject i.
       maxPotential <- sortedPotentials[256] # Max electrode EEG value.
@@ -43,9 +42,21 @@ binCreator <- function(df, subjMat){
   binFrame # Return the binFrame
 }
 
-binFrequency <- function(df, subjMat){
-  
-  
+binFrequency <- function(df, binF, subjMat){
+  initialFrame <- data.frame(x=1:33)
+  frequencyFrame <- initialFrame[,FALSE] # Create the frequency frame
+  # Loop through all subjects.
+  for(i in 1:length(subjMat)){
+    binArray <- matrix(0, nrow = 33, ncol = 1) # Matrix ore all bin values.
+    
+    # Loop through all electrodes.
+    for(j in 1:25){
+       # Loop through all elements.
+       for(k in 1:33){
+         binArray[k] <- count()
+       }
+    }
+  }
 }
 
 
