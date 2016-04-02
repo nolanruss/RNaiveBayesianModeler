@@ -10,36 +10,42 @@ binCreator <- function(df, subjMat){
   binTotal <- 32
   
   # Create a dataframe to store the bin values in order from min to max.
-  binFrame <- data.frame(paste0("BIN",seq(1:33)), row.names = )
-  
+  initialFrame <- data.frame(x=1:33)
+  binFrame <- initialFrame[,FALSE]
+  print(binFrame)
   # Loop through each subject in the data.frame.
   for(i in 1:length(subjMat)){
     # Loop through each set of electrode potentials.
-    for(j in 4){
-    #for(j in 4:length(df)){
+    #for(j in 4){
+    for(j in 4:length(df)){
       sortedPotentials <- sort(df[subjMat[i]==df[,2],j], decreasing = FALSE) # Sort array of electrode potentials for subject i.
       maxPotential <- sortedPotentials[256] # Max electrode EEG value.
       minPotential <- sortedPotentials[1] # Min electrode EEG value.
- #     print(sortedPotentials)
+
       # Calculate the deltaV (max - min)/32 for each subject set.
       deltaV <- (maxPotential-minPotential)/binTotal
-      binArray <- matrix(0, nrow = 0, ncol = 1) # Stores all bin values.
-      colnames(binArray) <- paste0(subjMat[i],"-El",(j-3))
+      binArray <- matrix(0, nrow = 33, ncol = 1) # Matrix ore all bin values.
+      colnames(binArray) <- paste0(subjMat[i],"-El",(j-3)) # Name the matrix columns.
       binValue <-  minPotential # Set the initial bin variable value.
       
       # Build an array of the BIN values
-      #print(sortedPotentials)
       for(k in 1:(binTotal+1)){
         #print(binValue)
-        binArray <- rbind(binArray, binValue) # Add a new bin value to the binArray.
+        binArray[k] <- binValue # Add a new bin value to the binArray.
         binValue <- binValue + deltaV # Increment the next bin.
       }
-      print(binArray)
-      binFrame <- cbind(binFrame[1,1:i], binArray, binFrame[1,-(1:i)]) # Add the binArray as a new column to the Frame.
-      #print(binFrame)
+      # Add the sorted data as a new column to binFrame.
+      
+      binFrame <- cbind(binFrame, binArray) # Add the binArray as a new column to the Frame.
     }
   }
+  row.names(binFrame) = paste0("BIN",seq(1:33))
   binFrame # Return the binFrame
+}
+
+binFrequency <- function(df, subjMat){
+  
+  
 }
 
 
