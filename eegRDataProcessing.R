@@ -1,6 +1,6 @@
 # Import the raw data. Class: data.frame
 Flower_Gray_Combined_Data <- read.csv("~/Documents/School/CSC_511_AI/Research_Proj/repository of eeg/ERPPaired/Flower_Gray_Combined_Data.csv", header=TRUE)
-colnames(Flower_Gray_Combined_Data) <- c("Type", "Subject", "Timepoint", paste0("El", seq(1:25))) # Set column names.
+#colnames(Flower_Gray_Combined_Data) <- c("Type", "Subject", "Timepoint", paste0("El", seq(1:25))) # Set column names.
 
 # Order the data by subject, where each subject contains a data.frame of timepoint x electrode matrices.
 combinedDataBySubject <- data.frame(x=1:34)
@@ -51,7 +51,7 @@ binFrequency <- function(df, binF, subjMat){
   initialFrame <- data.frame(x=1:33)
   frequencyFrame <- initialFrame[,FALSE] # Create the frequency frame
   # Loop through all subjects.
-  for(i in 1:length(subjMat)){
+  for(i in 2:length(subjMat)){
     binArray <- matrix(0, nrow = 33, ncol = 1) # Matrix ore all bin values.
     
     # Loop through all electrodes.
@@ -88,21 +88,22 @@ z <- complex(n, rnorm(n), rnorm(n))
 # Performs Full Fourier Transform on each set of electrodes for each subject.
 # The function accepts a matrix of subject IDs (subjIDs), and data.frame (df).
 EegFFT <- function(df, subjIDs){
-    initialFrame <- data.frame(x=1:33)
+    initialFrame <- data.frame(x=1:256)
     
     # frequencyFrame stores all fft data in a 256 x (34*25) data frame.
     # 
-    frequencyFrame <- initialFrame[,FALSE] # Create the frequency frame
+    fftFrame <- initialFrame[,FALSE] # Create the frequency frame
   
-    for(i in 1:length(subjIDs)){
+    for(i in 2:length(subjIDs)){  # NOTE: THIS LOOP STARTS AT 2 BECAUSE 1 ROW OF DATA IS MISSING FROM FLOWER_
         for(j in 4:28){
             # create a matrix of fft values for 1 electrode, 1 subject.
-            fftArray <- matrix(fft(df[df[,2]==subjIDs[i],j]))
-            colnames(binArray) <- paste0(subjMat[i],"-El",(j-3)) # Name the matrix columns.
+            fftArray <- matrix(fft(df[df[,2]==subjIDs[i],j]), nrow = 256, ncol = 1)
+            colnames(fftArray) <- paste0(subjIDs[i],"-El",(j-3)) # Name the matrix columns.
             # Store the frequencies in the frequencyFrame.
-            frequencyFrame <- cbind(frequencyFrame, fftArray)
+            fftFrame <- cbind(fftFrame, fftArray)
+            print(j)
         }
     }
-    row.names(frequencyFrame) = paste0(1:256)
-    frequencyFrame # Return the binFrame
+    row.names(fftFrame) = paste0(1:256)
+    fftFrame # Return the binFrame
 }
