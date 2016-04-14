@@ -1,6 +1,6 @@
 # Import the raw data. Class: data.frame
 Flower_Gray_Combined_Data <- read.csv("~/Documents/School/CSC_511_AI/Research_Proj/repository of eeg/ERPPaired/Flower_Gray_Combined_Data.csv", header=FALSE)
-#colnames(Flower_Gray_Combined_Data) <- c("Type", "Subject", "Timepoint", paste0("El", seq(1:25))) # Set column names.
+colnames(Flower_Gray_Combined_Data) <- c("Type", "Subject", "Timepoint", paste0("El", seq(1:25))) # Set column names.
 
 # Order the data by subject, where each subject contains a data.frame of timepoint x electrode matrices.
 combinedDataBySubject <- data.frame(x=1:34)
@@ -72,26 +72,12 @@ flowerOnlyData <- Flower_Gray_Combined_Data[flowerRows,]
 grayRows <- Flower_Gray_Combined_Data[,1] == "gray"
 grayOnlyData <- Flower_Gray_Combined_Data[grayRows,]
 
-## Slow Discrete Fourier Transform (DFT) - e.g., for checking the formula
-fft0 <- function(z, inverse=FALSE) {
-  n <- length(z)
-  if(n == 0) return(z)
-  k <- 0:(n-1)
-  ff <- (if(inverse) 1 else -1) * 2*pi * 1i * k/n
-  vapply(1:n, function(h) sum(z * exp(ff*(h-1))), complex(1))
-}
-
-relD <- function(x,y) 2* abs(x - y) / abs(x + y)
-n <- 2^8
-z <- complex(n, rnorm(n), rnorm(n))
-
 # Performs Full Fourier Transform on each set of electrodes for each subject.
 # The function accepts a matrix of subject IDs (subjIDs), and data.frame (df).
 EegFFT <- function(df, subjIDs){
     initialFrame <- data.frame(x=1:256)
     
     # frequencyFrame stores all fft data in a 256 x (34*25) data frame.
-    # 
     fftFrame <- initialFrame[,FALSE] # Create the frequency frame
   
     for(i in 1:length(subjIDs)){
@@ -106,3 +92,20 @@ EegFFT <- function(df, subjIDs){
     row.names(fftFrame) = paste0(1:256)
     fftFrame # Return the binFrame
 }
+
+# To write the fft file to a .csv file
+# write.csv(x, file = "~/Documents/School/CSC_511_AI/Research_Proj/repository of eeg/ERPPaired/FFT_Flower_Gray_Combined.csv")
+
+# Calculate the magnitudes, then create frames for the delta, theta, alpha, and beta frequencies
+fft_data <- EegFFT(Flower_Gray_Combined_Data, subjectIDs)
+magnitudeFrame <- abs(fft_data[,2:length(fft_data)])
+deltaFrame <- magnitudeFrame[1:7,]
+thetaFrame <- magnitudeFrame[8:9,]
+alphaFrame <- magnitudeFrame[10:13,]
+betaFrame <- magnitudeFrame[14:31,]
+
+# Obtain the mean of magnitudes for each electrode from magnitudes stored in data.frames (deltaFrame, etc.).
+delta <- colMeans(deltaFrame)
+theta <- colMeans(thetaFrame)
+alpha <- colMeans(alphaFrame)
+beta <- colMeans(betaFrame)
