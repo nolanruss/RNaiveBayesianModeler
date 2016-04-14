@@ -1,5 +1,5 @@
 # Import the raw data. Class: data.frame
-Flower_Gray_Combined_Data <- read.csv("~/Documents/School/CSC_511_AI/Research_Proj/repository of eeg/ERPPaired/Flower_Gray_Combined_Data.csv", header=TRUE)
+Flower_Gray_Combined_Data <- read.csv("~/Documents/School/CSC_511_AI/Research_Proj/repository of eeg/ERPPaired/Flower_Gray_Combined_Data.csv", header=FALSE)
 #colnames(Flower_Gray_Combined_Data) <- c("Type", "Subject", "Timepoint", paste0("El", seq(1:25))) # Set column names.
 
 # Order the data by subject, where each subject contains a data.frame of timepoint x electrode matrices.
@@ -94,14 +94,13 @@ EegFFT <- function(df, subjIDs){
     # 
     fftFrame <- initialFrame[,FALSE] # Create the frequency frame
   
-    for(i in 2:length(subjIDs)){  # NOTE: THIS LOOP STARTS AT 2 BECAUSE 1 ROW OF DATA IS MISSING FROM FLOWER_
+    for(i in 1:length(subjIDs)){
         for(j in 4:28){
             # create a matrix of fft values for 1 electrode, 1 subject.
             fftArray <- matrix(fft(df[df[,2]==subjIDs[i],j]), nrow = 256, ncol = 1)
             colnames(fftArray) <- paste0(subjIDs[i],"-El",(j-3)) # Name the matrix columns.
             # Store the frequencies in the frequencyFrame.
             fftFrame <- cbind(fftFrame, fftArray)
-            print(j)
         }
     }
     row.names(fftFrame) = paste0(1:256)
