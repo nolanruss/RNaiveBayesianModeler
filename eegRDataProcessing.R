@@ -8,6 +8,8 @@ combinedDataBySubject <- combinedDataBySubject[,FALSE]
 
 # Extract all unique subject IDs.  Class: character array.
 subjectIDs <- levels(Flower_Gray_Combined_Data[,2])
+fSubjectIDs <- levels(Flower_Gray_Combined_Data["flower",2])
+gSubjectIDs <- levels(Flower_Gray_Combined_Data["gray",2])
 
 # binCreator is a function that builds a matrix of subject IDs, max value, and min value.
 binCreator <- function(df, subjMat){
@@ -83,10 +85,13 @@ EegFFT <- function(df, subjIDs){
     for(i in 1:length(subjIDs)){
         for(j in 4:28){
             # create a matrix of fft values for 1 electrode, 1 subject.
-            fftArray <- matrix(fft(df[df[,2]==subjIDs[i],j]), nrow = 256, ncol = 1)
-            colnames(fftArray) <- paste0(subjIDs[i],"-El",(j-3)) # Name the matrix columns.
-            # Store the frequencies in the frequencyFrame.
-            fftFrame <- cbind(fftFrame, fftArray)
+            tmpDf <- df[df[,2]==subjIDs[i],j]
+            if(length(tmpDf != 0)){
+                fftArray <- matrix(fft(df[df[,2]==subjIDs[i],j]), nrow = 256, ncol = 1)
+                colnames(fftArray) <- paste0(subjIDs[i],"-El",(j-3)) # Name the matrix columns.
+                # Store the frequencies in the frequencyFrame.
+                fftFrame <- cbind(fftFrame, fftArray)
+            }
         }
     }
     row.names(fftFrame) = paste0(1:256)
@@ -96,16 +101,75 @@ EegFFT <- function(df, subjIDs){
 # To write the fft file to a .csv file
 # write.csv(x, file = "~/Documents/School/CSC_511_AI/Research_Proj/repository of eeg/ERPPaired/FFT_Flower_Gray_Combined.csv")
 
+# For flower, calculate the alpha, beta, delta, theta values.
 # Calculate the magnitudes, then create frames for the delta, theta, alpha, and beta frequencies
-fft_data <- EegFFT(Flower_Gray_Combined_Data, subjectIDs)
-magnitudeFrame <- abs(fft_data[,2:length(fft_data)])
-deltaFrame <- magnitudeFrame[1:7,]
-thetaFrame <- magnitudeFrame[8:9,]
-alphaFrame <- magnitudeFrame[10:13,]
-betaFrame <- magnitudeFrame[14:31,]
+fFFTData <- EegFFT(flowerOnlyData, fSubjectIDs)
+fMagnitudeFrame <- abs(fFFTData[,1:length(fFFTData)])
+fDeltaFrame <- fMagnitudeFrame[1:7,]
+fThetaFrame <- fMagnitudeFrame[8:9,]
+fAlphaFrame <- fMagnitudeFrame[10:13,]
+fBetaFrame <- fMagnitudeFrame[14:31,]
 
-# Obtain the mean of magnitudes for each electrode from magnitudes stored in data.frames (deltaFrame, etc.).
-delta <- colMeans(deltaFrame)
-theta <- colMeans(thetaFrame)
-alpha <- colMeans(alphaFrame)
-beta <- colMeans(betaFrame)
+# Obtain the magnitudes for each electrode from magnitudes stored in data.frames (deltaFrame, etc.).
+fDelta <- colMeans(fDeltaFrame)
+fTheta <- colMeans(fThetaFrame)
+fAlpha <- colMeans(fAlphaFrame)
+fBeta <- colMeans(fBetaFrame)
+
+# For gray, calculate the alpha, beta, delta, theta values.
+# Calculate the magnitudes, then create frames for the delta, theta, alpha, and beta frequencies
+gFFTData <- EegFFT(grayOnlyData, fSubjectIDs)
+gMagnitudeFrame <- abs(gFFTData[,1:length(gFFTData)])
+gDeltaFrame <- gMagnitudeFrame[1:7,]
+gThetaFrame <- gMagnitudeFrame[8:9,]
+gAlphaFrame <- gMagnitudeFrame[10:13,]
+gBetaFrame <- gMagnitudeFrame[14:31,]
+
+# Obtain the magnitudes for each electrode from magnitudes stored in data.frames (deltaFrame, etc.).
+gDelta <- colMeans(gDeltaFrame)
+gTheta <- colMeans(gThetaFrame)
+gAlpha <- colMeans(gAlphaFrame)
+gBeta <- colMeans(gBetaFrame)
+
+
+# Plot the data
+xAxis <- rep(1:25, each = 1, times = 17) # set the axis values 1-25, repeated for each subject.
+fDeltaMean <- data.frame(fDelta) # Place all data in a data.frame.
+fDeltaPlot <- ggplot(fDeltaMean, aes(xAxis, y=fDelta))+geom_point() # Make a scatter plot.
+gDeltaMean <- data.frame(gDelta)
+gDeltaPlot <- ggplot(gDeltaMean, aes(xAxis, y=gDelta))+geom_point()
+
+fThetaMean <- data.frame(fTheta)
+fThetaPlot <- ggplot(fThetaMean, aes(xAxis, y=fTheta))+geom_point()
+
+gThetaMean <- data.frame(gTheta)
+gThetaPlot <- ggplot(gThetaMean, aes(xAxis, y=gTheta))+geom_point()
+
+gAlphaMean <- data.frame(gAlpha)
+gAlphaPlot <- ggplot(gAlphaMean, aes(xAxis, y=gAlpha))+geom_point()
+
+fAlphaMean <- data.frame(fAlpha)
+fAlphaPlot <- ggplot(fAlphaMean, aes(xAxis, y=fAlpha))+geom_point()
+
+gBetaMean <- data.frame(gBeta)
+gBetaPlot <- ggplot(gBetaMean, aes(xAxis, y=gBeta))+geom_point()
+
+fBetaMean <- data.frame(fBeta)
+fBetaPlot <- ggplot(fBetaMean, aes(xAxis, y=fBeta))+geom_point()
+
+gDeltaPlot
+fDeltaPlot
+gThetaPlot
+fThetaPlot
+gAlphaPlot
+fAlphaPlot
+gBetaPlot
+fBetaPlot
+
+dSubjectMeans <- data.frame(matrix(NA, nrow=25, ncol=17))
+for(i in 1:length(fDeltaMean)){
+    for(j in 1:17){
+        dSubjectMeans[]
+    }
+}
+
