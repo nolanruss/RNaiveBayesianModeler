@@ -150,28 +150,28 @@ ExtractMeans <- function(df){
   df.subset <- data.frame(matrix(NA, nrow = 1, ncol = 25))
   #print(df.subset)
   df.subset[1:25] <- colMeans(df[,3:27])
-  y <- data.frame(el=seq(1:25))
-  y <- cbind(y, mag.mean=matrix(df.subset[1,1:25], nrow=25, ncol=1))
+  y <- data.frame(Electrode=seq(1:25))
+  y <- cbind(y, Magnitude=matrix(df.subset[1,1:25], nrow=25, ncol=1))
   y
 }
 
 # Reunite the delta values into a single df. First frame should be "happy", 2nd "neutral"
-UniteFrame <- function(h.df, n.df, title){
-  cond <- c("")
-  df.united <- data.frame(Condition=rep(c("Happy","Neutral"), times=1, each=25))
-  df.united <- cbind(df.united, rbind(h.df,n.df))
-  df.united <- cbind(df.united,h.df)
-  df.united <- cbind(df.united, g.mag.mean=unlist(n.df[,2]))
+UniteFrame <- function(h.df, n.df, df.names){
+  df.united <- data.frame(Condition=rep(df.names, times=1, each=25))
+  df.united <- cbind(df.united, rbind(h.df, n.df))
+#  df.united <- cbind(df.united, h.df)
+#  df.united <- cbind(df.united, Magnitude=unlist(n.df[,2]))
   df.united
 }
 
 # Accept a data.frame with the layout creawted by UniteFrame() and return a list of plots.
+# Title is, c("Delta (Happy)", "Delta (Neutral)").
 CreatePlots <- function(df, title){
-  df$mag.mean <- unlist(df$mag.mean)
-  names(df)[2:3] <- c("Electrode", "Magnitude")
-  Condition <- df$Condition
+  df$Magnitude <- unlist(df$Magnitude)
+  df$Condition <- unlist(df$Condition)
   tmp.list <- ggplot(data=df, aes(x=Electrode, y=Magnitude, group = Condition, colour = Condition)) +
-    geom_line() + ggtitle(title)
+    geom_line() + 
+    ggtitle(title)
   tmp.list
 }
 
@@ -180,25 +180,25 @@ f.delta.frame <- ExtractSubjectData(delta.frame, f.subject.ids)
 f.delta.mean <- ExtractMeans(f.delta.frame)
 g.delta.frame <- ExtractSubjectData(delta.frame, g.subject.ids)
 g.delta.mean <- ExtractMeans(g.delta.frame)
-u.delta.mean <- UniteFrame(f.delta.mean, g.delta.mean)
+u.delta.mean <- UniteFrame(f.delta.mean, g.delta.mean, c("Delta (Happy)", "Delta (Neutral)"))
 
 f.theta.frame <- ExtractSubjectData(theta.frame, f.subject.ids)
 f.theta.mean <- ExtractMeans(f.theta.frame)
 g.theta.frame <- ExtractSubjectData(theta.frame, g.subject.ids)
 g.theta.mean <- ExtractMeans(g.theta.frame)
-u.theta.mean <- UniteFrame(f.theta.mean, g.theta.mean)
+u.theta.mean <- UniteFrame(f.theta.mean, g.theta.mean, c("Theta (Happy)", "Theta (Neutral)"))
 
 f.alpha.frame <- ExtractSubjectData(alpha.frame, f.subject.ids)
 f.alpha.mean <- ExtractMeans(f.alpha.frame)
 g.alpha.frame <- ExtractSubjectData(alpha.frame, g.subject.ids)
 g.alpha.mean <- ExtractMeans(g.alpha.frame)
-u.alpha.mean <- UniteFrame(f.alpha.mean, g.theta.mean)
+u.alpha.mean <- UniteFrame(f.alpha.mean, g.theta.mean, c("Alpha (Happy)", "Alpha (Neutral)"))
 
 f.beta.frame <- ExtractSubjectData(beta.frame, f.subject.ids)
 f.beta.mean <- ExtractMeans(f.beta.frame)
 g.beta.frame <- ExtractSubjectData(beta.frame, g.subject.ids)
 g.beta.mean <- ExtractMeans(g.beta.frame)
-u.beta.mean <- UniteFrame(f.beta.mean, g.beta.mean)
+u.beta.mean <- UniteFrame(f.beta.mean, g.beta.mean, c("Beta (Happy)", "Beta (Neutral)"))
 
 # Create plots for all mean values
 delta.plot <- CreatePlots(u.delta.mean, c("Mean Delta Magnitudes"))
@@ -206,16 +206,22 @@ theta.plot <- CreatePlots(u.theta.mean, c("Mean Theta Magnitudes"))
 alpha.plot <- CreatePlots(u.alpha.mean, c("Mean Alpha Magnitudes"))
 beta.plot <- CreatePlots(u.beta.mean, c("Mean Beta Magnitudes"))
 
-superPlot <- alpha.plot + geom_line(data=u.beta.mean, aes(x=el, y=unlist(mag.mean), group=Condition)) +
-            geom_line(data=u.delta.mean, aes(x=el, y=unlist(mag.mean), group=Condition)) +
-            geom_line(data=u.theta.mean, aes(x=el, y=unlist(mag.mean), group=Condition)) +
-            ggtitle("Mean Magnitudes, All Bands")
+# Select a better color pallete, and create the plot of all magnitudes.
+cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#CC79A7", "#D55E00", "#0072B2")
+superPlot <- alpha.plot + 
+                geom_line(data=u.beta.mean, aes(x=Electrode, y=unlist(Magnitude), group=Condition)) +
+                geom_line(data=u.delta.mean, aes(x=Electrode, y=unlist(Magnitude), group=Condition)) +
+                geom_line(data=u.theta.mean, aes(x=Electrode, y=unlist(Magnitude), group=Condition)) +
+                ggtitle("Mean Magnitudes, All Bands") +
+                scale_color_manual(values=cbbPalette)
 
+superPlot
 # Single subject plot (happy), all 256 timpepoints and 25 electrodes
 f.oneSub <- combined.data[combined.data[,2]==f.subject.ids[1],3:28]
 f.mdat <- melt(f.oneSub)
 f.mdat$tp <- seq(1:256)
-f.oneSub.plot <- ggplot(data=f.mdat, aes(x=factor(tp), y=value, group=factor(variable), colour=factor(variable))) + 
+f.oneSub.plot <- ggplot(data=f.mdat, aes(x=factor(tp), 
+                      y=value, group=factor(variable), colour=factor(variable))) + 
                   geom_line() + ggtitle("One Subject, Happy, All Electrodes") + xlab("Timepoint (1:256)")
 
 # Single subject plot (neutral), all 256 timpepoints and 25 electrodes
