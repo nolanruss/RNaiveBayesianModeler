@@ -192,7 +192,7 @@ f.alpha.frame <- ExtractSubjectData(alpha.frame, f.subject.ids)
 f.alpha.mean <- ExtractMeans(f.alpha.frame)
 g.alpha.frame <- ExtractSubjectData(alpha.frame, g.subject.ids)
 g.alpha.mean <- ExtractMeans(g.alpha.frame)
-u.alpha.mean <- UniteFrame(f.alpha.mean, g.theta.mean, c("Alpha (Happy)", "Alpha (Neutral)"))
+u.alpha.mean <- UniteFrame(f.alpha.mean, g.alpha.mean, c("Alpha (Happy)", "Alpha (Neutral)"))
 
 f.beta.frame <- ExtractSubjectData(beta.frame, f.subject.ids)
 f.beta.mean <- ExtractMeans(f.beta.frame)
