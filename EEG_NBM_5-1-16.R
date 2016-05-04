@@ -28,7 +28,7 @@ ApplyFFT <- function(df, subj.ids) {
       # Get the results of FFT.
       fft.results <- cbind(fft.results, fft(df[df[,2] == subject.ids[i],j]))
     }
-
+    
     # Populate the table.
     fft.table <- data.frame(id = rep(subj.ids[i],256),
                             tp = 1:256,
@@ -39,7 +39,7 @@ ApplyFFT <- function(df, subj.ids) {
     # Store the frequencies in the fft.frame.
     fft.frame <- rbind(fft.frame, fft.table)
   }
-
+  
   fft.frame # Return the fft.frame.
 }
 
@@ -87,18 +87,18 @@ UniteFrame <- function(h.df, n.df, title) {
 CreatePlots <- function(df, title){
   # Unlist the magnitude means
   df$mag.mean <- unlist(df$mag.mean)
-
+  
   # Set names
   names(df)[2:3] <- c("Electrode", "Magnitude")
-
+  
   # Create the plot
   tmp.list <- ggplot(data=df, 
                      aes(x=Electrode, 
                          y=Magnitude, 
                          group = Condition, 
                          colour = Condition)) +
-                     geom_line() + 
-                     ggtitle(title)
+    geom_line() + 
+    ggtitle(title)
   tmp.list
 }
 
@@ -111,12 +111,12 @@ ObtainDensity <- function(df, freq_band) {
   density.frame <- data.frame(matrix(nrow = 1, ncol = 26))
   density.frame[1] <- df[1,1] 
   colnames(density.frame) <- c("id", seq(1,25))
-
+  
   # Calculate total length of frequency band for dividing integral by later.
   a <- freq_band[1]
   b <- freq_band[2]
   length <- b - a
-
+  
   # Loop through the discrete time range.
   for (i in 3:27) {
     value <- 0
@@ -125,16 +125,16 @@ ObtainDensity <- function(df, freq_band) {
     for (j in a:b) {
       value <- value + df[j,i]**2
     }
-
+    
     # Finish calculation of spectral density.
     value <- value / length
-
+    
     # Ultimately, new subject data frame will contain a total of:
     # 26 columns (first is id, 2-26 are electrodes 1-25).
     # 1 appended row of the specified frequency band.
     density.frame[1,i-1] <- value
   }
-
+  
   # Return...
   density.frame
 }
@@ -144,19 +144,19 @@ FindMinMax <- function(df) {
   values <- matrix(nrow = 2, ncol = 4)
   colnames(values) <- c("delta", "theta", "alpha", "beta")
   rownames(values) <- c("min", "max")
-
+  
   # Assign min values for each band.
   values[1,1] <- min(df[df[,1] == "delta", 3:27])  
   values[1,2] <- min(df[df[,1] == "theta", 3:27])  
   values[1,3] <- min(df[df[,1] == "alpha", 3:27])  
   values[1,4] <- min(df[df[,1] == "beta", 3:27])  
-
+  
   # Assign max values for each band.
   values[2,1] <- max(df[df[,1] == "delta", 3:27])  
   values[2,2] <- max(df[df[,1] == "theta", 3:27])  
   values[2,3] <- max(df[df[,1] == "alpha", 3:27])  
   values[2,4] <- max(df[df[,1] == "beta", 3:27])  
-
+  
   # Return the matrix.
   values
 }
@@ -167,10 +167,10 @@ FindMinMax <- function(df) {
 GetAllDensities <- function(df, subj.ids){
   # ApplyMagnitude to df.
   df <- ApplyMagnitude(df)
-
+  
   # Obtain the spectral density for the delta/theta/alpha/beta
   spec.den <- data.frame(matrix(nrow = 0, ncol = 27))
-
+  
   # Enter the names for each band to be requested
   colnames(spec.den) <- (c("freq.band", "id", seq(1,25)))
   
@@ -181,7 +181,7 @@ GetAllDensities <- function(df, subj.ids){
     d.block[,1] <- c("delta", "theta", "alpha", "beta")
     colnames(d.block) <- c("freq.band")
     d.vals <- data.frame(matrix(nrow = 0, ncol = 26))
-
+    
     # Delta
     tmp <- ObtainDensity(df.tmp, c(1,7))
     d.vals <- rbind(d.vals, tmp)
@@ -194,7 +194,7 @@ GetAllDensities <- function(df, subj.ids){
     # Beta
     tmp <- ObtainDensity(df.tmp, c(13, 30))
     d.vals <- rbind(d.vals, tmp)
-
+    
     # Add to spec.den
     d.block <- cbind(d.block, d.vals)
     spec.den <- rbind(spec.den, d.block)
@@ -204,8 +204,142 @@ GetAllDensities <- function(df, subj.ids){
   spec.den
 }
 
+# Create bins (100 bins per band, per subject type)
+CreateBins <- function(df.min.max, df.spec.dens, bin.total){
+  # Create a data.frame to contain all the bins
+  bin.frame <- data.frame(matrix(0, nrow = 4, ncol = bin.total+1))
+  colnames(bin.frame) <- c("freq.band", seq(1,100))
+  bin.frame[1,1] <- "delta"
+  bin.frame[2,1] <- "theta"
+  bin.frame[3,1] <- "alpha"
+  bin.frame[4,1] <- "beta"
+  
+  # Calculate partition widths.
+  delta.max <- df.min.max[2,1]
+  delta.min <- df.min.max[1,1]
+  delta.width <- (delta.max - delta.min) / bin.total
+  
+  theta.max <- df.min.max[2,2]
+  theta.min <- df.min.max[1,2]
+  theta.width <- (theta.max - theta.min) / bin.total
+  
+  alpha.max <- df.min.max[2,3]
+  alpha.min <- df.min.max[1,3]
+  alpha.width <- (alpha.max - alpha.min) / bin.total
+  
+  beta.max <- df.min.max[2,4]
+  beta.min <- df.min.max[1,4]
+  beta.width <- (beta.max - beta.min) / bin.total
+  
+  # Bin limit.
+  bin.limit <- data.frame(matrix(0, nrow = 4, ncol = bin.total))
+  
+  # Iterate through bin.total to find bin frequencies.
+  for (i in 1:bin.total) {
+    # Iterate through df.spec.dens. 
+    for (j in 1:nrow(df.spec.dens)) {
+      # Calculate current bin limit. Current bin is i.
+      if (df.spec.dens[j,1] == "delta") {
+        a <- delta.min + ((i-1) * delta.width)
+        b <- delta.min + (i * delta.width)
+        band <- "delta"
+        bin.limit[1,i] <- b
+      }
+      else if (df.spec.dens[j,1] == "theta") {
+        a <- theta.min + ((i-1) * theta.width)
+        b <- theta.min + (i * theta.width)
+        band <- "theta"
+        bin.limit[2,i] <- b
+      }
+      else if (df.spec.dens[j,1] == "alpha") {
+        a <- alpha.min + ((i-1) * alpha.width)
+        b <- alpha.min + (i * alpha.width)
+        band <- "alpha"
+        bin.limit[2,i] <- b
+      }    
+      else if (df.spec.dens[j,1] == "beta") {
+        a <- beta.min + ((i-1) * beta.width)
+        b <- beta.min + (i * beta.width)
+        band <- "beta"
+        bin.limit[2,i] <- b
+      }
+      
+      # Perform counting in current bin.
+      for (k in 3:length(df.spec.dens)) {
+        if (df.spec.dens[j,k] >= a && df.spec.dens[j,k] < b) {
+          bin.frame[bin.frame[1] == band,i+1] <- bin.frame[bin.frame[1] == band,i+1] + 1
+        }
+        else if (i == 100) {
+          if (df.spec.dens[j,k] >= a && df.spec.dens[j,k] <= b) {
+            bin.frame[bin.frame[1] == band,i+1] <- bin.frame[bin.frame[1] == band,i+1] + 1
+          }
+        }
+      }
+    }
+  }
+  
+  # bin.frame returned contains 4 rows (one for each freq band), and 101 columns
+  # (1 for freq band label, and 100 for bins).
+	bin.limit <- cbind(bin.frame[,1], bin.limit)
+  list(bin.frame, bin.limit)
+}
+
+GetProbabilites <- function(t.avg, f.log, g.log){
+  # Create a data.frame to store the probabilites
+  t.log <- cbind(t.avg, matrix(NA, nrow = nrow(t.avg), ncol = 2))
+	
+  # Iterate through the bins to find the probabilities for each subject
+	# Iterate through each subject
+	# i=number of subjects, j=frequency band, k=f.log bin
+  for (i in 1:nrow(t.log)){
+		# Iterate through delta through beta	
+    for (j in 1:nrow(f.log[[1]])){  
+			# Iterate through all bins of f.log
+      for (k in 2:(length(f.log[[1]]))){
+        if (is.na(t.log[i,4]) && (t.log[i,3] < f.log[[2]][j,k])){
+          t.log[i,4] <- f.log[[1]][j,k]
+        }
+        if (is.na(t.log[i,5]) && (t.log[i,3] < g.log[[2]][j,k])){
+          t.log[i,5] <- g.log[[1]][j,k]
+        }
+      }
+    }
+  }
+	colnames(t.log)[4:5] <- c("Happy", "Neutral")
+  t.log
+}
+
+# Show the happy and neutral test results.
+TestSummary <- function(df){
+
+	# Extract the subject IDs
+	df.subs <- levels(unique(df[,2])[drop = TRUE])
+
+	# Summary data.frame will contain the sum of log probabilities
+	# and report the final result ("Happy" or "Neutral").
+	summary <- data.frame(matrix(NA, nrow = length(df.subs), ncol = 4))
+	colnames(summary) <- c("id", "happy", "neutral", "Result")
+
+	# Cycle through the subjects, adding all log probabilities.
+	for(i in 1:length(df.subs)){
+		print(df.subs[i])
+		summary[i,1] <- df.subs[i]
+		summary[i,2] <- sum(df[df[,2]==df.subs[i],4])
+		summary[i,3] <- sum(df[df[,2]==df.subs[i],5])	
+	
+		# Decide if the result is "Happy" or "Neutral".
+		if (summary[i,2] < summary[i,3]){
+			summary[i,4] <- c("Neutral")
+		}
+		else{
+			summary[i,4] <- c("Happy")
+		}
+	}
+	summary
+}
+
 #
-# End of functions
+# END OF FUNCTIONS
 #
 
 
@@ -261,29 +395,15 @@ colnames(theta.frame) <- c("id", "tp", seq(1,25))
 colnames(alpha.frame) <- c("id", "tp", seq(1,25))
 colnames(beta.frame) <- c("id", "tp", seq(1,25))
 
-
-# Bayesian probability calculator.
-# The following conditional probabilities are to be calculated to train
-# the Naive Bayesian Classifier:
-#       P(delta|F), P(theta|F), P(alpha|F), P(beta|F)
-#       P(delta|G), P(theta|G), P(alpha|G), P(beta|G)
-#
-# P(delta|F) = P(F|delta)*P(F)/P(delta|F),P(theta|F), P(alpha|F), P(beta|F)
-
 # Obtain average electrode magnitudes for every subject and every electrode.
 j <- 1
 for (i in seq(1,length(subject.ids))) {
-    
-    #
-    # Mean magnitude frames for each frequency.
-    #
-
   # Bind the rows to the ends of each frame.
   delta.frame <- rbind(delta.frame, magnitude.frame[(j):(j+6), ])
   theta.frame <- rbind(theta.frame, magnitude.frame[(j+7):(j+8), ])
   alpha.frame <- rbind(alpha.frame, magnitude.frame[(j+9):(j+12), ])
   beta.frame <- rbind(beta.frame, magnitude.frame[(j+13):(j+30), ])
-    
+  
   # Create a matrix for each list of electrode means.
   delta.means <- cbind(id = subject.ids[i], 
                        electrode = seq(1,25), 
@@ -303,10 +423,10 @@ for (i in seq(1,length(subject.ids))) {
   theta.means <- data.frame(theta.means)
   alpha.means <- data.frame(alpha.means)
   beta.means <- data.frame(beta.means)
-
+  
   # Create a list of all the frames
   wave.means <- list(delta.means, theta.means, alpha.means, beta.means)
-
+  
   # Output a plot for each subject.
   
   # Increment j.
@@ -315,14 +435,14 @@ for (i in seq(1,length(subject.ids))) {
   }
 }
 
-delta.plot <-ggplot(data=delta.means,
-                    aes(x=electrode,
-                        y=factor(mean),
-                        fill=factor(mean))) +
-                    geom_bar(stat="identity") + 
-                    guides(fill=FALSE) + 
-                    ggtitle(subject.ids[1]) + 
-                    scale_x_discrete(limits=seq(1,25))
+delta.plot <- ggplot(data=delta.means,
+                     aes(x=electrode,
+                         y=factor(mean),
+                         fill=factor(mean))) +
+  geom_bar(stat="identity") + 
+  guides(fill=FALSE) + 
+  ggtitle(subject.ids[1]) + 
+  scale_x_discrete(limits=seq(1,25))
 
 # Generate all Mean Frames for delta, theta, etc.
 f.delta.frame <- ExtractSubjectData(delta.frame, f.subject.ids)
@@ -349,23 +469,48 @@ g.beta.frame <- ExtractSubjectData(beta.frame, g.subject.ids)
 g.beta.mean <- ExtractMeans(g.beta.frame)
 u.beta.mean <- UniteFrame(f.beta.mean, g.beta.mean)
 
-# Obtain all the spectral densities
-spectral.densities <- GetAllDensities(fft.data, f.subject.ids)
+# Obtain all the spectral densities for subjects
+f.spectral.densities <- GetAllDensities(fft.data, f.subject.ids[3:length(f.subject.ids)])
+g.spectral.densities <- GetAllDensities(fft.data, g.subject.ids[3:length(g.subject.ids)])
 
 # Obtain min/max values.
-min.max <- FindMinMax(spectral.densities)
+f.min.max <- FindMinMax(f.spectral.densities)
+g.min.max <- FindMinMax(g.spectral.densities)
 
-# Create the bins for each spectral band using min.max.  There will be 4
-# bins, split into 4 data.frames as the bin total may be subject to change.
-# delta.bins <- CreateBins(min.max, spectral.densities 
-CreateBins <- function(df.minmax, 100){
-	
-}
+# Obtain bin frequencies
+f.freqs <- CreateBins(f.min.max, f.spectral.densities, 100)
+g.freqs <- CreateBins(g.min.max, g.spectral.densities, 100)
 
-# Find the frequencies for each bin value and the spectral density.
-# Total of all fequencies should equal 25*17 = 425
-# Calculate the probabilities for each bin frequency.
-	# Probability = BinFrequency/(425)
+# Calculate bin probabilities
+f.probs <- f.freqs
+f.probs[[1]][,2:101] <- f.freqs[[1]][,2:101] / sum(f.freqs[[1]][1,2:101])
+print(dim(f.probs[[1]]))
+f.logs <- f.probs
+f.logs[[1]][,2:101] <- log(f.logs[[1]][,2:101])
+g.probs <- g.freqs
+g.probs[[1]][,2:101] <- g.freqs[[1]][,2:101] / sum(g.freqs[[1]][1,2:101])
+g.logs <- g.probs
+g.logs[[1]][,2:101] <- log(g.probs[[1]][,2:101])
+
+# Prep and test the Test Subjects
+# Obtain the spectral densities for the remaining subjects
+f.test.densities <- GetAllDensities(fft.data, f.subject.ids[1:2])
+f.average.densities <- cbind(f.test.densities[,1:2],
+                             rowMeans(f.test.densities[,3:27]))
+colnames(f.average.densities)[3] <- c("avg.dens")
+
+g.test.densities <- GetAllDensities(fft.data, g.subject.ids[1:2])
+g.average.densities <- cbind(g.test.densities[,1:2], 
+                             rowMeans(g.test.densities[,3:27]))
+colnames(g.average.densities)[3] <- c("avg.dens")
+
+# average.densities contains all average spectral densities, for all test subjects.
+test.average.densities <- rbind(f.average.densities, g.average.densities)
+
+# Find the log probabilities for a subject being happy and neutral for each band.
+test.log <- GetProbabilites(test.average.densities, f.logs, g.logs)
+test.summary <- TestSummary(test.log)
+print(test.summary)
 
 # Create plots for all mean values
 delta.plot <- CreatePlots(u.delta.mean, c("Mean Delta Magnitudes"))
@@ -376,14 +521,14 @@ beta.plot <- CreatePlots(u.beta.mean, c("Mean Beta Magnitudes"))
 super.plot <- alpha.plot + 
   geom_line(data=u.beta.mean,
             aes(x=el, y=unlist(mag.mean), 
-            group=Condition)) +
-            geom_line(data=u.delta.mean, 
-                      aes(x=el, y=unlist(mag.mean), 
-                      group=Condition)) +
-            geom_line(data=u.theta.mean, 
-                      aes(x=el, y=unlist(mag.mean), 
-                      group=Condition)) +
-            ggtitle("Mean Magnitudes, All Bands")
+                group=Condition)) +
+  geom_line(data=u.delta.mean, 
+            aes(x=el, y=unlist(mag.mean), 
+                group=Condition)) +
+  geom_line(data=u.theta.mean, 
+            aes(x=el, y=unlist(mag.mean), 
+                group=Condition)) +
+  ggtitle("Mean Magnitudes, All Bands")
 
 # Single subject plot (happy), all 256 timpepoints and 25 electrodes
 f.oneSub <- combined.data[combined.data[,2]==f.subject.ids[1],3:28]
@@ -394,10 +539,10 @@ f.oneSub.plot <- ggplot(data=f.mdat,
                             y=value, 
                             group=factor(variable), 
                             colour=factor(variable))) + 
-                 geom_line() + 
-                 ggtitle("One Subject, Happy, All Electrodes") + 
-                 xlab("Timepoint (1:256)") + 
-                 scale_y_continuous(limits=c(-15, 30))
+  geom_line() + 
+  ggtitle("One Subject, Happy, All Electrodes") + 
+  xlab("Timepoint (1:256)") + 
+  scale_y_continuous(limits=c(-15, 30))
 
 # Single subject plot (neutral), all 256 timpepoints and 25 electrodes
 g.oneSub <- combined.data[combined.data[,2]==g.subject.ids[1],3:28]
@@ -405,11 +550,11 @@ g.mdat <- melt(g.oneSub)
 g.mdat$tp <- seq(1:256)
 g.oneSub.plot <- ggplot(data=g.mdat, 
                         aes(x=factor(tp), y=value, group=factor(variable), 
-                        colour=factor(variable))) + 
-                 geom_line() + 
-                 ggtitle("One Subject, Neutral, All Electrodes") + 
-                 xlab("Timepoint (1:256)") + 
-                 scale_y_continuous(limits=c(-15, 30))
+                            colour=factor(variable))) + 
+  geom_line() + 
+  ggtitle("One Subject, Neutral, All Electrodes") + 
+  xlab("Timepoint (1:256)") + 
+  scale_y_continuous(limits=c(-15, 30))
 
 # One subject (happy) transformed data, all 256 timepoints, and 25 electrodes
 f.oneSub.fft <- magnitude.frame[magnitude.frame[,1]==f.subject.ids[1],2:27]
@@ -418,13 +563,13 @@ f.oneSub.fft[,1] <- factor(seq(1:35))
 f.mdat <- melt(f.oneSub.fft)
 f.oneSub.fft.plot <- ggplot(data=f.mdat, 
                             aes(x=factor(tp), 
-                            y=value, 
-                            group=factor(variable), 
-                            colour=factor(variable))) + 
-                     geom_line() + 
-                     ggtitle("Magnitudes, Happy, All Electrodes") + 
-                     xlab("Timepoint (1:35)") +
-                     scale_y_continuous(limit=c(0,1000))
+                                y=value, 
+                                group=factor(variable), 
+                                colour=factor(variable))) + 
+  geom_line() + 
+  ggtitle("Magnitudes, Happy, All Electrodes") + 
+  xlab("Timepoint (1:35)") +
+  scale_y_continuous(limit=c(0,1000))
 
 # One subject (happy) transformed data, all 256 timepoints, and 25 electrodes
 g.oneSub.fft <- magnitude.frame[magnitude.frame[,1]==g.subject.ids[1],2:27]
@@ -434,13 +579,13 @@ g.oneSub.fft[,1] <- factor(seq(1:35))
 g.mdat <- melt(g.oneSub.fft)
 g.oneSub.fft.plot <- ggplot(data=g.mdat, 
                             aes(x=factor(tp), 
-                            y=value, 
-                            group=factor(variable), 
-                            colour=factor(variable))) + 
-                     geom_line() + 
-                     ggtitle("Magnitudes, Neutral, All Electrodes") + 
-                     xlab("Timepoint (1:35)") +
-                     scale_y_continuous(limit=c(0,1000))
+                                y=value, 
+                                group=factor(variable), 
+                                colour=factor(variable))) + 
+  geom_line() + 
+  ggtitle("Magnitudes, Neutral, All Electrodes") + 
+  xlab("Timepoint (1:35)") +
+  scale_y_continuous(limit=c(0,1000))
 
 # All plots in one convenient location! Output after each.
 g.oneSub.plot 
@@ -452,14 +597,3 @@ alpha.plot
 beta.plot
 delta.plot
 theta.plot
-
-# Experimentation below
-#x <- ggplot(data=delta.mean, aes(x=tp, y=unlist(mag.mean), group = Condition, colour = Condition)) +
-#  geom_line() 
-#+
-#geom_point( size=4, shape=21, fill="white")
-
-#ggplot(data=delta.mean, aes(x=tp, y=unlist(mag.mean), group = Condition, colour = Condition)) +
-#  geom_bar()
-
-#delta.plot <- ggplot(data=delta.means, aes(x=electrode, y=factor(mean), fill=factor(mean))) + geom_bar(stat="identity") + guides(fill=FALSE) + ggtitle(subject.ids[1]) + scale_x_discrete(limits=seq(1,25))
