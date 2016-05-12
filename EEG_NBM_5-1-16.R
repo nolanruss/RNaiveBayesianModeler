@@ -3,7 +3,15 @@ library("ggplot2")
 library("stats")
 library("reshape2")
 library("plyr")
-#library("plotly")
+library("datasets")
+library("graphics")
+library("methods")
+library("stats")
+library("utils")
+
+# Variables
+bin.tot <- 100 # Number of frequency bins to use with the model
+subj.tot <- 8 # Number of subjects to test against the model
 
 #
 # Functions for data extraction
@@ -43,8 +51,8 @@ ApplyFFT <- function(df, subj.ids) {
   fft.frame # Return the fft.frame.
 }
 
-# Calculate the magnitude for all members of an fft dataset.
-ApplyMagnitude <- function(df){
+# Calculate the Amplitude for all members of an fft dataset.
+ApplyAmplitude <- function(df){
   data.frame(df[,1], abs(df[,2:length(df)]))
 }
 
@@ -68,7 +76,7 @@ ExtractMeans <- function(df) {
   #print(df.subset)
   df.subset[1:25] <- colMeans(df[,3:27])
   y <- data.frame(Electrode=seq(1:25))
-  y <- cbind(y, Magnitude=matrix(df.subset[1,1:25], nrow=25, ncol=1))
+  y <- cbind(y, Amplitude=matrix(df.subset[1,1:25], nrow=25, ncol=1))
   y
 }
 
@@ -82,14 +90,14 @@ UniteFrame <- function(h.df, n.df, df.names){
 # Accept a data.frame with the layout created by UniteFrame() and 
 # return a list of plots.
 CreatePlots <- function(df, title){
-  # Unlist the magnitude means and conditions
-  df$Magnitude <- unlist(df$Magnitude)
+  # Unlist the Amplitude means and conditions
+  df$Amplitude <- unlist(df$Amplitude)
   df$Condition <- unlist(df$Condition)
 
   # Create the plot
   tmp.plot <- ggplot(data=df, 
                      aes(x=Electrode, 
-                         y=Magnitude, 
+                         y=Amplitude, 
                          group = Condition, 
                          colour = Condition)) + 
                         geom_line() + 
@@ -97,7 +105,7 @@ CreatePlots <- function(df, title){
   tmp.plot
 }
 
-# Spectral density function. Takes a subject's magnitude frame and a frequency
+# Spectral density function. Takes a subject's Amplitude frame and a frequency
 # band (frequency range, example: c(1, 6.5), which would indicate 1-6.5 Hz) and 
 # returns a subject data frame populatd with the spectral densities for each 
 # electrode.
@@ -160,8 +168,8 @@ FindMinMax <- function(df) {
 # The function calls ObtainDensity function for each frequency band and
 # consolidates them in a single data.frame.  The data.frame is returned.
 GetAllDensities <- function(df, subj.ids){
-  # ApplyMagnitude to df.
-  df <- ApplyMagnitude(df)
+  # ApplyAmplitude to df.
+  df <- ApplyAmplitude(df)
   
   # Obtain the spectral density for the delta/theta/alpha/beta
   spec.den <- data.frame(matrix(nrow = 0, ncol = 27))
@@ -203,7 +211,7 @@ GetAllDensities <- function(df, subj.ids){
 CreateBins <- function(df.min.max, df.spec.dens, bin.total){
   # Create a data.frame to contain all the bins
   bin.frame <- data.frame(matrix(0, nrow = 4, ncol = bin.total+1))
-  colnames(bin.frame) <- c("freq.band", seq(1,100))
+  colnames(bin.frame) <- c("freq.band", seq(1,bin.total))
   bin.frame[1,1] <- "delta"
   bin.frame[2,1] <- "theta"
   bin.frame[3,1] <- "alpha"
@@ -250,23 +258,23 @@ CreateBins <- function(df.min.max, df.spec.dens, bin.total){
         a <- alpha.min + ((i-1) * alpha.width)
         b <- alpha.min + (i * alpha.width)
         band <- "alpha"
-        bin.limit[2,i] <- b
+        bin.limit[3,i] <- b
       }    
       else if (df.spec.dens[j,1] == "beta") {
         a <- beta.min + ((i-1) * beta.width)
         b <- beta.min + (i * beta.width)
         band <- "beta"
-        bin.limit[2,i] <- b
+        bin.limit[4,i] <- b
       }
       
       # Perform counting in current bin.
       for (k in 3:length(df.spec.dens)) {
         if (df.spec.dens[j,k] >= a && df.spec.dens[j,k] < b) {
-          bin.frame[bin.frame[1] == band,i+1] <- bin.frame[bin.frame[1] == band,i+1] + 1
+          bin.frame[bin.frame[,1] == band,i+1] <- bin.frame[bin.frame[,1] == band,i+1] + 1
         }
-        else if (i == 100) {
+        else if (i == bin.total) {
           if (df.spec.dens[j,k] >= a && df.spec.dens[j,k] <= b) {
-            bin.frame[bin.frame[1] == band,i+1] <- bin.frame[bin.frame[1] == band,i+1] + 1
+            bin.frame[bin.frame[,1] == band,i+1] <- bin.frame[bin.frame[,1] == band,i+1] + 1
           }
         }
       }
@@ -281,20 +289,20 @@ CreateBins <- function(df.min.max, df.spec.dens, bin.total){
 
 GetProbabilites <- function(t.avg, f.log, g.log){
   # Create a data.frame to store the probabilites
-  t.log <- cbind(t.avg, matrix(NA, nrow = nrow(t.avg), ncol = 2))
-	
+  t.log <- cbind(t.avg, matrix(-Inf, nrow = nrow(t.avg), ncol = 2))
+  
   # Iterate through the bins to find the probabilities for each subject
 	# Iterate through each subject
 	# i=number of subjects, j=frequency band, k=f.log bin
   for (i in 1:nrow(t.log)){
 		# Iterate through delta through beta	
     for (j in 1:nrow(f.log[[1]])){  
-			# Iterate through all bins of f.log
+			# Iterate through all bins of f.log and g.log
       for (k in 2:(length(f.log[[1]]))){
-        if (is.na(t.log[i,4]) && (t.log[i,3] < f.log[[2]][j,k])){
+        if (is.infinite(t.log[i,4]) && (t.log[i,3] < f.log[[2]][j,k])){
           t.log[i,4] <- f.log[[1]][j,k]
         }
-        if (is.na(t.log[i,5]) && (t.log[i,3] < g.log[[2]][j,k])){
+        if (is.infinite(t.log[i,5]) && (t.log[i,3] < g.log[[2]][j,k])){
           t.log[i,5] <- g.log[[1]][j,k]
         }
       }
@@ -317,12 +325,11 @@ TestSummary <- function(df){
 
 	# Cycle through the subjects, adding all log probabilities.
 	for(i in 1:length(df.subs)){
-		print(df.subs[i])
 		summary[i,1] <- df.subs[i]
 		summary[i,2] <- sum(df[df[,2]==df.subs[i],4])
 		summary[i,3] <- sum(df[df[,2]==df.subs[i],5])	
 	
-		# Decide if the result is "Happy" or "Neutral".
+		# Determine if the result is "Happy" or "Neutral".
 		if (summary[i,2] < summary[i,3]){
 			summary[i,4] <- c("Neutral")
 		}
@@ -369,13 +376,13 @@ gray.rows <- combined.data[,1] == "gray"
 gray.data <- combined.data[gray.rows, ]
 
 
-# Calculate the magnitudes, then create frames for the delta, theta, alpha, and
+# Calculate the Amplitudes, then create frames for the delta, theta, alpha, and
 # beta frequencies.
 fft.data <- ApplyFFT(combined.data, subject.ids)
-magnitude.frame <- ApplyMagnitude(fft.data)
+Amplitude.frame <- ApplyAmplitude(fft.data)
 
 # Rename electrode columns back to 1..25 instead of X1..X25.
-colnames(magnitude.frame) <- c("id", "tp", seq(1,25))
+colnames(Amplitude.frame) <- c("id", "tp", seq(1,25))
 
 # Build one data frame for each significant frequency spectrum and append each
 # subject's mean values for their respective electrode readings.
@@ -390,14 +397,14 @@ colnames(theta.frame) <- c("id", "tp", seq(1,25))
 colnames(alpha.frame) <- c("id", "tp", seq(1,25))
 colnames(beta.frame) <- c("id", "tp", seq(1,25))
 
-# Obtain average electrode magnitudes for every subject and every electrode.
+# Obtain average electrode Amplitudes for every subject and every electrode.
 j <- 1
 for (i in seq(1,length(subject.ids))) {
   # Bind the rows to the ends of each frame.
-  delta.frame <- rbind(delta.frame, magnitude.frame[(j):(j+6), ])
-  theta.frame <- rbind(theta.frame, magnitude.frame[(j+7):(j+8), ])
-  alpha.frame <- rbind(alpha.frame, magnitude.frame[(j+9):(j+12), ])
-  beta.frame <- rbind(beta.frame, magnitude.frame[(j+13):(j+30), ])
+  delta.frame <- rbind(delta.frame, Amplitude.frame[(j):(j+6), ])
+  theta.frame <- rbind(theta.frame, Amplitude.frame[(j+7):(j+8), ])
+  alpha.frame <- rbind(alpha.frame, Amplitude.frame[(j+9):(j+12), ])
+  beta.frame <- rbind(beta.frame, Amplitude.frame[(j+13):(j+30), ])
   
   # Create a matrix for each list of electrode means.
   delta.means <- cbind(id = subject.ids[i], 
@@ -456,36 +463,95 @@ g.beta.mean <- ExtractMeans(g.beta.frame)
 u.beta.mean <- UniteFrame(f.beta.mean, g.beta.mean, c("Beta (Happy)", "Beta (Neutral)"))
 
 # Obtain all the spectral densities for subjects
-f.spectral.densities <- GetAllDensities(fft.data, f.subject.ids[3:length(f.subject.ids)])
-g.spectral.densities <- GetAllDensities(fft.data, g.subject.ids[3:length(g.subject.ids)])
+f.spectral.densities <- GetAllDensities(fft.data, f.subject.ids[1:length(f.subject.ids)])
+g.spectral.densities <- GetAllDensities(fft.data, g.subject.ids[1:length(g.subject.ids)])
 
 # Obtain min/max values.
+u.spectral.densities <- rbind(f.spectral.densities, g.spectral.densities)
+u.min.max <- FindMinMax(u.spectral.densities)
+rownames(u.min.max) <- c("Min", "Max")
+
 f.min.max <- FindMinMax(f.spectral.densities)
 g.min.max <- FindMinMax(g.spectral.densities)
+rownames(f.min.max) <- c("Happy-min", "Happy-max")
+rownames(g.min.max) <- c("Neutral-min", "Neutral-max")
+mmax <- rbind(f.min.max, g.min.max)
 
 # Obtain bin frequencies
-f.freqs <- CreateBins(f.min.max, f.spectral.densities, 100)
-g.freqs <- CreateBins(g.min.max, g.spectral.densities, 100)
+u.f.freqs <- CreateBins(u.min.max, f.spectral.densities, bin.tot)
+u.g.freqs <- CreateBins(u.min.max, g.spectral.densities, bin.tot)
+f.freqs <- CreateBins(f.min.max, f.spectral.densities, bin.tot)
+g.freqs <- CreateBins(g.min.max, g.spectral.densities, bin.tot)
 
 # Calculate bin probabilities
+bin.lim <- bin.tot + 1
 f.probs <- f.freqs
-f.probs[[1]][,2:101] <- f.freqs[[1]][,2:101] / sum(f.freqs[[1]][1,2:101])
+f.probs[[1]][,2:bin.lim] <- f.freqs[[1]][,2:bin.lim] / sum(f.freqs[[1]][1,2:bin.lim])
 print(dim(f.probs[[1]]))
 f.logs <- f.probs
-f.logs[[1]][,2:101] <- log(f.logs[[1]][,2:101])
+f.logs[[1]][,2:bin.lim] <- log(f.logs[[1]][,2:bin.lim])
 g.probs <- g.freqs
-g.probs[[1]][,2:101] <- g.freqs[[1]][,2:101] / sum(g.freqs[[1]][1,2:101])
+g.probs[[1]][,2:bin.lim] <- g.freqs[[1]][,2:bin.lim] / sum(g.freqs[[1]][1,2:bin.lim])
 g.logs <- g.probs
-g.logs[[1]][,2:101] <- log(g.probs[[1]][,2:101])
+g.logs[[1]][,2:bin.lim] <- log(g.probs[[1]][,2:bin.lim])
+
+# U. Tryout
+u.f.probs <- u.f.freqs
+u.f.probs[[1]][,2:bin.lim] <- u.f.freqs[[1]][,2:bin.lim] / sum(u.f.freqs[[1]][1,2:bin.lim])
+print(dim(u.f.probs[[1]]))
+u.f.logs <- u.f.probs
+u.f.logs[[1]][,2:bin.lim] <- log(u.f.logs[[1]][,2:bin.lim])
+u.g.probs <- u.g.freqs
+u.g.probs[[1]][,2:bin.lim] <- u.g.freqs[[1]][,2:bin.lim] / sum(u.g.freqs[[1]][1,2:bin.lim])
+u.g.logs <- u.g.probs
+u.g.logs[[1]][,2:bin.lim] <- log(u.g.probs[[1]][,2:bin.lim])
+
+
+# Test all electrodes against the model
+ElectrodeSummary <- data.frame(matrix(NA, nrow = 0, ncol = 4))
+electrodes <-25
+for(k in 1:subj.tot){
+  j.range <- 9 + 2
+#  for(j in 3:j.range){
+    f.oneEl <- fft.data[,1:2]
+    for(i in 1:electrodes){
+      f.oneEl <- cbind(f.oneEl, fft.data$`9`)
+    }
+    g.oneEl <- fft.data[,1:2]
+    for(i in 1:electrodes){
+      g.oneEl <- cbind(g.oneEl, fft.data$`9`)
+    }
+    
+    f.oneEl.densities <- GetAllDensities(f.oneEl, f.subject.ids[k])
+    g.oneEl.densities <- GetAllDensities(g.oneEl, g.subject.ids[k])
+#    print(head(f.oneEl.densities))
+    oneEl.densities <- rbind(f.oneEl.densities, g.oneEl.densities)
+#    print(oneEl.densities)
+    oneEl.avg <- oneEl.densities[,1:3]
+    oneEl.oneB <- oneEl.avg[oneEl.avg[,1]=="delta",]
+    for(n in 1:3){
+      oneEl.oneB <- rbind(oneEl.oneB, oneEl.oneB[k,])
+      print(oneEl.oneB)
+    }
+    print(oneEl.oneB)
+ #   print(oneEl.avg)
+    oneEl.log <- GetProbabilites(oneEl.avg, u.f.logs, u.g.logs)
+    oneEl.summary <- TestSummary(oneEl.log)
+    rownames(oneEl.summary) <- list(c("H-",j.range-2), c("N-",(j.range-2)))
+    ElectrodeSummary <- rbind(ElectrodeSummary, oneEl.summary)
+#  }
+}
+View(ElectrodeSummary)
+
 
 # Prep and test the Test Subjects
 # Obtain the spectral densities for the remaining subjects
-f.test.densities <- GetAllDensities(fft.data, f.subject.ids[1:2])
+f.test.densities <- GetAllDensities(fft.data, f.subject.ids[1:subj.tot])
 f.average.densities <- cbind(f.test.densities[,1:2],
                              rowMeans(f.test.densities[,3:27]))
 colnames(f.average.densities)[3] <- c("avg.dens")
 
-g.test.densities <- GetAllDensities(fft.data, g.subject.ids[1:2])
+g.test.densities <- GetAllDensities(fft.data, g.subject.ids[1:subj.tot])
 g.average.densities <- cbind(g.test.densities[,1:2], 
                              rowMeans(g.test.densities[,3:27]))
 colnames(g.average.densities)[3] <- c("avg.dens")
@@ -496,30 +562,35 @@ test.average.densities <- rbind(f.average.densities, g.average.densities)
 # Find the log probabilities for a subject being happy and neutral for each band.
 test.log <- GetProbabilites(test.average.densities, f.logs, g.logs)
 test.summary <- TestSummary(test.log)
-print(test.summary)
+View(test.summary)
+
+# Test using uniform bin sizes and widths for happy and neutral (prob given either happy or neutral)
+u.test.log <- GetProbabilites(test.average.densities, u.f.logs, u.g.logs)
+u.test.summary <- TestSummary(u.test.log)
+View(u.test.summary)
 
 # Create plots for all mean values
-delta.plot <- CreatePlots(u.delta.mean, c("Mean Delta Magnitudes"))
-theta.plot <- CreatePlots(u.theta.mean, c("Mean Theta Magnitudes"))
-alpha.plot <- CreatePlots(u.alpha.mean, c("Mean Alpha Magnitudes"))
-beta.plot <- CreatePlots(u.beta.mean, c("Mean Beta Magnitudes"))
+delta.plot <- CreatePlots(u.delta.mean, c("Mean Delta Amplitudes"))
+theta.plot <- CreatePlots(u.theta.mean, c("Mean Theta Amplitudes"))
+alpha.plot <- CreatePlots(u.alpha.mean, c("Mean Alpha Amplitudes"))
+beta.plot <- CreatePlots(u.beta.mean, c("Mean Beta Amplitudes"))
 
-# Select a better color pallete, and create the plot of all magnitudes.
+# Select a better color pallete, and create the plot of all Amplitudes.
 cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#CC79A7", "#D55E00", "#0072B2")
 super.plot <- alpha.plot + 
               geom_line(data=u.beta.mean, 
                         aes(x=Electrode,
-                            y=unlist(Magnitude), 
+                            y=unlist(Amplitude), 
                             group=unlist(Condition))) +
               geom_line(data=u.delta.mean, 
                         aes(x=Electrode, 
-                            y=unlist(Magnitude), 
+                            y=unlist(Amplitude), 
                             group=unlist(Condition))) +
               geom_line(data=u.theta.mean, 
                         aes(x=Electrode, 
-                            y=unlist(Magnitude), 
+                            y=unlist(Amplitude), 
                             group=unlist(Condition))) +
-              ggtitle("Mean Magnitudes, All Bands") +
+              ggtitle("Mean Amplitudes, All Bands") +
               scale_color_manual(values=cbbPalette)
 
 # Single subject plot (happy), all 256 timpepoints and 25 electrodes
@@ -531,25 +602,27 @@ f.oneSub.plot <- ggplot(data=f.mdat,
                             y=value, 
                             group=factor(variable), 
                             colour=factor(variable))) + 
-  geom_line() + 
-  ggtitle("One Subject, Happy, All Electrodes") + 
-  xlab("Timepoint (1:256)") + 
-  scale_y_continuous(limits=c(-15, 30))
+                        geom_line() + 
+                        ggtitle("One Subject, Happy, All Electrodes") + 
+                        xlab("Timepoint (1:256)") + 
+                        scale_y_continuous(limits=c(-15, 30))
 
 # Single subject plot (neutral), all 256 timpepoints and 25 electrodes
 g.oneSub <- combined.data[combined.data[,2]==g.subject.ids[1],3:28]
 g.mdat <- melt(g.oneSub)
 g.mdat$tp <- seq(1:256)
 g.oneSub.plot <- ggplot(data=g.mdat, 
-                        aes(x=factor(tp), y=value, group=factor(variable), 
+                        aes(x=factor(tp), 
+                            y=value, 
+                            group=factor(variable), 
                             colour=factor(variable))) + 
-  geom_line() + 
-  ggtitle("One Subject, Neutral, All Electrodes") + 
-  xlab("Timepoint (1:256)") + 
-  scale_y_continuous(limits=c(-15, 30))
+                        geom_line() + 
+                        ggtitle("One Subject, Neutral, All Electrodes") + 
+                        xlab("Timepoint (1:256)") + 
+                        scale_y_continuous(limits=c(-15, 30))
 
 # One subject (happy) transformed data, all 256 timepoints, and 25 electrodes
-f.oneSub.fft <- magnitude.frame[magnitude.frame[,1]==f.subject.ids[1],2:27]
+f.oneSub.fft <- Amplitude.frame[Amplitude.frame[,1]==f.subject.ids[1],2:27]
 f.oneSub.fft <- f.oneSub.fft[1:35,]
 f.oneSub.fft[,1] <- factor(seq(1:35))
 f.mdat <- melt(f.oneSub.fft)
@@ -558,13 +631,13 @@ f.oneSub.fft.plot <- ggplot(data=f.mdat,
                                 y=value, 
                                 group=factor(variable), 
                                 colour=factor(variable))) + 
-  geom_line() + 
-  ggtitle("Magnitudes, Happy, All Electrodes") + 
-  xlab("Timepoint (1:35)") +
-  scale_y_continuous(limit=c(0,1000))
+                            geom_line() + 
+                            ggtitle("Amplitudes, Happy, All Electrodes") + 
+                            xlab("Timepoint (1:35)") +
+                            scale_y_continuous(limit=c(0,1000))
 
 # One subject (happy) transformed data, all 256 timepoints, and 25 electrodes
-g.oneSub.fft <- magnitude.frame[magnitude.frame[,1]==g.subject.ids[1],2:27]
+g.oneSub.fft <- Amplitude.frame[Amplitude.frame[,1]==g.subject.ids[1],2:27]
 g.oneSub.fft <- g.oneSub.fft[1:35,]
 #g.oneSub.fft[,2:26] <- rowMeans(g.oneSub.fft[,2:26])
 g.oneSub.fft[,1] <- factor(seq(1:35))
@@ -574,10 +647,11 @@ g.oneSub.fft.plot <- ggplot(data=g.mdat,
                                 y=value, 
                                 group=factor(variable), 
                                 colour=factor(variable))) + 
-  geom_line() + 
-  ggtitle("Magnitudes, Neutral, All Electrodes") + 
-  xlab("Timepoint (1:35)") +
-  scale_y_continuous(limit=c(0,1000))
+                            geom_line() + 
+                            ggtitle("Amplitudes, Neutral, All Electrodes") + 
+                            xlab("Timepoint (1:35)") +
+                            scale_y_continuous(limit=c(0,1000))
+
 
 # All plots in one convenient location! Output after each.
 g.oneSub.plot 
@@ -589,3 +663,138 @@ alpha.plot
 beta.plot
 delta.plot
 theta.plot
+
+
+# Generate plots for the log probabilites of both subject types, for each subject type
+f.d.log <- data.frame(NA, nrow = (length(u.f.logs[[1]])-1), ncol = 3)
+colnames(f.d.log) <- c("type", "bin.val", "bin.freq")
+
+for(i in 2:length(u.f.logs[[1]])){
+  f.d.log[i-1, 1] <- c("Delta-Happy")
+  f.d.log[i-1, 2] <- u.f.logs[[2]][1,i]
+  f.d.log[i-1, 3] <- u.f.logs[[1]][1,i]
+}
+
+g.d.log <- data.frame(NA, nrow = (length(u.f.logs[[1]])-1), ncol = 3)
+colnames(g.d.log) <- c("type", "bin.val", "bin.freq")
+
+for(i in 2:length(u.f.logs[[1]])){
+  g.d.log[i-1, 1] <- c("Delta-Neutral")
+  g.d.log[i-1, 2] <- u.g.logs[[2]][1,i]
+  g.d.log[i-1, 3] <- u.g.logs[[1]][1,i]
+}
+
+# Theta Frame
+f.t.log <- data.frame(NA, nrow = (length(u.f.logs[[1]])-1), ncol = 3)
+colnames(f.t.log) <- c("type", "bin.val", "bin.freq")
+
+for(i in 2:length(u.f.logs[[1]])){
+  f.t.log[i-1, 1] <- c("Theta-Happy")
+  f.t.log[i-1, 2] <- u.f.logs[[2]][2,i]
+  f.t.log[i-1, 3] <- u.f.logs[[1]][2,i]
+}
+
+g.t.log <- data.frame(NA, nrow = (length(u.f.logs[[1]])-1), ncol = 3)
+colnames(g.t.log) <- c("type", "bin.val", "bin.freq")
+
+for(i in 2:length(u.f.logs[[1]])){
+  g.t.log[i-1, 1] <- c("Theta-Neutral")
+  g.t.log[i-1, 2] <- u.g.logs[[2]][2,i]
+  g.t.log[i-1, 3] <- u.g.logs[[1]][2,i]
+}
+
+# Alpha Frame
+f.a.log <- data.frame(NA, nrow = (length(u.f.logs[[1]])-1), ncol = 3)
+colnames(f.a.log) <- c("type", "bin.val", "bin.freq")
+
+for(i in 2:length(u.f.logs[[1]])){
+  f.a.log[i-1, 1] <- c("Alpha-Happy")
+  f.a.log[i-1, 2] <- u.f.logs[[2]][3,i]
+  f.a.log[i-1, 3] <- u.f.logs[[1]][3,i]
+}
+
+g.a.log <- data.frame(NA, nrow = (length(u.f.logs[[1]])-1), ncol = 3)
+colnames(g.a.log) <- c("type", "bin.val", "bin.freq")
+
+for(i in 2:length(u.f.logs[[1]])){
+  g.a.log[i-1, 1] <- c("Alpha-Neutral")
+  g.a.log[i-1, 2] <- u.g.logs[[2]][3,i]
+  g.a.log[i-1, 3] <- u.g.logs[[1]][3,i]
+}
+
+# Beta frame
+f.b.log <- data.frame(NA, nrow = (length(u.f.logs[[1]])-1), ncol = 3)
+colnames(f.b.log) <- c("type", "bin.val", "bin.freq")
+
+for(i in 2:length(u.f.logs[[1]])){
+  f.b.log[i-1, 1] <- c("Beta-Happy")
+  f.b.log[i-1, 2] <- u.f.logs[[2]][4,i]
+  f.b.log[i-1, 3] <- u.f.logs[[1]][4,i]
+}
+
+g.b.log <- data.frame(NA, nrow = (length(u.f.logs[[1]])-1), ncol = 3)
+colnames(g.b.log) <- c("type", "bin.val", "bin.freq")
+
+for(i in 2:length(u.f.logs[[1]])){
+  g.b.log[i-1, 1] <- c("Beta-Neutral")
+  g.b.log[i-1, 2] <- u.g.logs[[2]][4,i]
+  g.b.log[i-1, 3] <- u.g.logs[[1]][4,i]
+}
+
+d.groupFrame <- rbind(f.d.log, g.d.log)
+t.groupFrame <- rbind(f.t.log, g.t.log)
+a.groupFrame <- rbind(f.a.log, g.a.log)
+b.groupFrame <- rbind(f.b.log, g.b.log)
+
+d.log.plot <- ggplot(data=d.groupFrame, 
+                    aes(x=factor(bin.val), 
+                        y=bin.freq, 
+                        group=factor(type), 
+                        colour=factor(type))) + 
+  geom_line() + 
+  ggtitle("Delta Log Probabilites vs. Bin") + 
+  xlab("Spectral Density Bin Limits") +
+  ylab("Log Probability")
+
+t.log.plot <- ggplot(data=t.groupFrame, 
+                     aes(x=factor(bin.val), 
+                         y=bin.freq, 
+                         group=factor(type), 
+                         colour=factor(type))) + 
+  geom_line() + 
+  ggtitle("Theta Log Probabilites vs. Bin") + 
+  xlab("Spectral Density Bin Limits") +
+  ylab("Log Probability")
+
+a.log.plot <- ggplot(data=a.groupFrame, 
+                     aes(x=factor(bin.val), 
+                         y=bin.freq, 
+                         group=factor(type), 
+                         colour=factor(type))) + 
+  geom_line() + 
+  ggtitle("Alpha Log Probabilites vs. Bin") + 
+  xlab("Spectral Density Bin Limits") +
+  ylab("Log Probability")
+
+b.width <- (b.groupFrame[2,2]-b.groupFrame[1,2])
+#b.groupFrame[,2] <- b.groupFrame[,2]-(b.width/2)
+b.log.plot <- ggplot(data=b.groupFrame, 
+                     aes(x=factor(bin.val), 
+                         y=bin.freq, 
+                         group=factor(type), 
+                         colour=factor(type))) + 
+  ggtitle("Beta Log Probabilites vs. Bin") + 
+  xlab("Spectral Density Bin Limits") +
+  ylab("Log Probability")
+
+g.log.plot <- ggplot(data=b.groupFrame, 
+                     aes(x=bin.freq, 
+                         group=factor(type), 
+                         colour=factor(type))) + 
+  geom_ + 
+  ggtitle("Beta Log Probabilites vs. Bin") + 
+  xlab("Spectral Density Bin Limits") +
+  ylab("Log Probability")
+
+#head(b.groupFrame)
+#x <- b.groupFrame[2,2]-b.groupFrame[1,2]
